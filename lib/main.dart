@@ -78,7 +78,7 @@ class _HomeState extends State<Home> {
     return "done";
   }
 
-  void editDialog(op, player) {
+  void editDialog(String op, ScrabblePlayer player) {
     TextEditingController word = TextEditingController();
     int multiplier = 1;
     int lastLength = 0;
@@ -110,6 +110,17 @@ class _HomeState extends State<Home> {
                               } else if (newWord.length < lastLength) {
                                 letters.removeLast();
                               }
+                              lastLength = newWord.length;
+
+                              points = 0;
+                              for (int i = 0; i < letters.length; i++) {
+                                points += (int.tryParse((pointMap[
+                                                letters[i].char.toLowerCase()])
+                                            .toString()) ??
+                                        0) *
+                                    letters[i].multiplier;
+                              }
+                              points *= multiplier;
                               stateSetter(() {});
                             }),
                       ),
@@ -124,7 +135,9 @@ class _HomeState extends State<Home> {
                               .toList(),
                           onChanged: (newChoice) => stateSetter(
                             () {
+                              points = (points / multiplier).round();
                               multiplier = newChoice ?? 1;
+                              points *= multiplier;
                             },
                           ),
                         ),
@@ -157,23 +170,18 @@ class _HomeState extends State<Home> {
                                                             ))
                                                     .toList(),
                                                 onChanged: (newChoice) {
+                                                  points -=
+                                                      (pointMap[letter.char] *
+                                                              letter.multiplier)
+                                                          as int;
+
                                                   letter.multiplier =
                                                       newChoice ?? 1;
 
-                                                  points = 0;
-                                                  for (int i = 0;
-                                                      i < letters.length;
-                                                      i++) {
-                                                    points += (int.tryParse(
-                                                                (pointMap[letters[
-                                                                            i]
-                                                                        .char
-                                                                        .toLowerCase()])
-                                                                    .toString()) ??
-                                                            0) *
-                                                        letters[i].multiplier;
-                                                  }
-                                                  points *= multiplier;
+                                                  points +=
+                                                      (pointMap[letter.char] *
+                                                              letter.multiplier)
+                                                          as int;
                                                   newStateSetter(
                                                     () {},
                                                   );
@@ -190,12 +198,27 @@ class _HomeState extends State<Home> {
                           )
                           .toList()),
                   const SizedBox(height: 20),
-                  Text("Points: $points"),
+                  Text(
+                    "Points: $points",
+                    style: const TextStyle(fontSize: 24),
+                  ),
                   const SizedBox(height: 20),
-                  Text("New Total: ${player.score + points}"),
+                  Text(
+                    "New Total: ${(int.parse(player.score.text) > points) ? int.parse(player.score.text) - points : 0}",
+                    style: const TextStyle(fontSize: 24),
+                  ),
+                  const SizedBox(height: 20),
                   ElevatedButton(
                     onPressed: () {
-                      player.add(points);
+                      if (op == "Add") {
+                        player.add(points);
+                      } else {
+                        if ((int.parse(player.score.text) > points)) {
+                          player.subtract(points);
+                        } else {
+                          player.score.text = "0";
+                        }
+                      }
                       Navigator.pop(context);
                       setState(() {});
                     },
@@ -371,7 +394,53 @@ class _HomeState extends State<Home> {
                               ),
                               const SizedBox(width: 10),
                               ElevatedButton(
-                                  onPressed: () {}, child: const Text("Remove"))
+                                  onPressed: () => editDialog("Rem", player),
+                                  child: const Text("Remove")),
+                              const SizedBox(width: 10),
+                              ElevatedButton(
+                                onPressed: () {
+                                  TextEditingController name =
+                                      TextEditingController(text: player.name);
+                                  showDialog(
+                                    context: context,
+                                    builder: (context) => Dialog(
+                                      child: Padding(
+                                        padding: const EdgeInsets.all(8.0),
+                                        child: Column(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Inputfield(
+                                              hintText: "Name",
+                                              controller: name,
+                                            ),
+                                            ElevatedButton(
+                                              onPressed: () {
+                                                if (name.text.isEmpty) {
+                                                  showDialog(
+                                                    context: context,
+                                                    builder: (context) =>
+                                                        const AlertDialog
+                                                            .adaptive(
+                                                      title: Text(
+                                                          "Name can't be empty"),
+                                                    ),
+                                                  );
+                                                  return;
+                                                }
+
+                                                player.name = name.text;
+                                                setState(() {});
+                                              },
+                                              child: const Text("Change"),
+                                            )
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                  );
+                                },
+                                child: const Text("Edit"),
+                              ),
                             ],
                           ),
                           Expanded(
@@ -389,7 +458,7 @@ class _HomeState extends State<Home> {
 }
 
 class ScrabblePlayer {
-  final String name;
+  String name;
   late TextEditingController score;
 
   ScrabblePlayer({required this.name, score}) {
